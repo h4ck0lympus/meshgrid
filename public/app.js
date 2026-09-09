@@ -201,9 +201,10 @@ form.addEventListener('submit', async event => {
 computeForm.addEventListener('submit', async event => {
   event.preventDefault();
   if (busy || !connected) return;
+  const command = new FormData(computeForm).get('command');
   busy = true; render();
   try {
-    computeResult = await api('/api/compute', { command: new FormData(computeForm).get('command') });
+    computeResult = await api('/api/compute', { command });
     snapshot = await api('/api/state');
   } catch (error) { computeResult = null; toast(error.message); }
   finally { busy = false; render(); }
