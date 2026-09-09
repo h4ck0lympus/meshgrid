@@ -1,44 +1,80 @@
-# Meshwork · 60-second submission video
+# AstraGrid · one-minute hackathon demo
 
-## Pitch
+## The sentence to land
 
-Meshwork turns independent compute into a usable service. Bring a workload and your constraints. Astra selects an eligible provider, Meshwork monitors availability, and when that provider disappears, the workload recovers elsewhere.
+> A consumer submits a compute-intensive OCI workload, AstraGrid finds affordable compatible capacity, and when that machine disappears, the control plane safely reroutes the workload.
 
-## Recording script — current build
+Call it a compute network or compute orchestration platform—not an inference playground and not merely a GPU marketplace.
 
-| Time | Screen / action | Narration |
+## Exact 60-second cut
+
+Record the story as short clips so a missed click cannot ruin the whole take.
+
+| Time | Screen and operator action | Voiceover cue |
 |---|---|---|
-| 0–9s | Main screen. Keep the workload form and placement panel visible. | “Meshwork turns independent computers into a usable compute service. Bring a workload, set your limits, and let the network find it a home.” |
-| 9–17s | Point to the image reference, maximum rate, and hardware requirements. | “This workload needs compatible hardware at an acceptable price. Meshwork checks those constraints before assigning a provider.” |
-| 17–27s | Click **Watch failover demo**. Show the assignment and concise decision. | “One node joins. The scheduler selects an eligible provider, and the deployment becomes healthy. This is our running control plane, using simulated machines and execution.” |
-| 27–37s | Leave the screen on the running placement. The demo disconnects its provider automatically. | “Now the provider disappears. Meshwork detects the missing heartbeat and revokes its old assignment.” |
-| 37–47s | Show the recovery state, then the replacement node. | “It chooses another compatible node and restarts the workload. The endpoint stays the same. New requests work again after recovery.” |
-| 47–55s | Open **Placement decision**. If configured, show a successful live model decision. | “Astra's placement adapter is integrated; this offline recording uses deterministic scheduling. Recovery and eligibility checks are enforced by the backend.” |
-| 55–60s | Return to recovered placement; briefly show the repository or test output. | “Our goal: make independent compute dependable. The implementation and reproducible tests are in the repository.” |
+| 00:00–00:06 | Hero: **Compute that finds itself.** Slow push toward the OCI card. | Idle compute becomes one resilient, budget-aware network. |
+| 00:06–00:11 | Show the image field and Cheapest / Balanced / Fastest. | One image, one objective—no infrastructure shopping list. |
+| 00:11–00:14 | Click **Run the live demo**. | The planner reads the declared workload. |
+| 00:14–00:19 | Hold on Inspecting and Matching. | It filters incompatible machines and ranks viable providers. |
+| 00:19–00:24 | Briefly open **Placement race**, then close it. | The backend validates the deterministic decision. |
+| 00:24–00:29 | Show the healthy route and moving packet lights. | A fenced lease activates and the route is healthy. |
+| 00:29–00:34 | Active node turns red: **SIGNAL LOST**. | The provider disappears. |
+| 00:34–00:39 | Show **REORCHESTRATING** and the broken edge. | Heartbeat expires, billing pauses, and the stale lease is revoked. |
+| 00:39–00:44 | Candidates light up; replacement becomes **SERVING**. | Same intent and endpoint, new compatible provider. |
+| 00:44–00:49 | Click **Run** in Compute task. Keep **SIMULATED RESULT** visible. | The result is simulated; the recovery path is real. |
+| 00:49–00:57 | Open **Simulation boundaries**. | Name exactly what works and what remains simulated. |
+| 00:57–01:00 | Clean logo card: **COMPUTE THAT FINDS ITSELF.** | Say the product name and tagline. |
 
-Approximately 145 words. Rehearse against the actual transitions; the guided flow takes about 25 seconds in offline mode. Begin it near 17 seconds. Timing may vary with live model calls.
+## Voiceover
 
-## If live Astra is configured and verified
+Use the exact text in [voiceover.txt](./voiceover.txt). It is intentionally honest about the current build and leaves room for natural pauses.
 
-Replace the 47–55s narration with: “Astra selected this provider from the eligible shortlist and explained the tradeoff. It makes another selection during recovery; the backend validates both decisions.”
+## Fast live-demo runbook
 
-Use this wording only when the recording shows a successful model decision, rather than fallback. Do not claim tool-driven decomposition, runtime conversion, measured GPU inference, or model execution on providers: those features are not implemented.
+1. Start the app with `npm start` and open `http://localhost:3000/`.
+2. Refresh once so the hero is visible and the state is clean.
+3. Say: “One OCI image. One objective.” Point to **Balanced**.
+4. Click **Run the live demo**. Do not touch anything while inspection and placement animate.
+5. When the route is healthy, click **Placement race** for two seconds, then close it.
+6. Let the guided demo disconnect the active provider. Stop speaking briefly when the node turns red.
+7. When the replacement node becomes healthy, scroll to **Compute task** and click **Run**.
+8. Finish on **Simulation boundaries**, then say the tagline.
 
-## Development criterion
+The guided backend sequence takes about 23 seconds after the click: initial placement is healthy around 7–8 seconds, failure begins roughly 7 seconds later, and recovery completes about 5–6 seconds after detection.
 
-Capture the actual Astra development session and the passing test command as supporting footage. A truthful alternative for the final segment is: “We used Astra to develop the control plane, verification checks, and recovery tests. The implementation is in our repository.” Use this only if the model used in those sessions is confirmed to be Astra.
+## Judge-safe claims
 
-## What the demo proves
+Working now:
 
-One declared workload is assigned to one eligible provider. A server-owned watchdog detects failure, fences the previous lease, selects a replacement, and restores the simulated service. There is downtime during recovery; it does not continue an interrupted generation or split a task into parallel jobs.
+- Control-plane APIs and state transitions
+- Compatibility filtering and deterministic placement
+- Heartbeat-driven failure detection
+- Fenced leases, failover, and recovery
+- Demo accounting invariants and reserve return
+- Fresh CPU computation challenges for provider agents
 
-Provider CPU computation challenges are real and separately testable with `npm run verify:smoke`. They do not authenticate an RTX model or establish GPU performance. Accounting remains secondary and uses demo balances.
+Simulated or planned:
 
-## Before recording
+- OCI/container execution and gVisor isolation
+- GPU identity and performance proof
+- Physical model or workload migration
+- Compute-task output, provider prices, and payments
+- Zero-downtime streaming
 
-- Refresh the local app and close unrelated windows.
-- Use **How the demo works** to rehearse, then close the explanation.
-- Keep advanced requirements and **Details & activity** collapsed until needed.
-- Confirm whether the footer shows offline scheduling or a successful live Astra decision.
-- Use the current build's disclosure language; avoid saying arbitrary Docker images execute today.
-- Reserve time to upload the video and repository link. Do not fabricate or backdate commits.
+Say “reroutes and restarts” rather than “live-migrates.” Say “same endpoint after recovery” rather than “zero downtime.”
+
+## Backup if the live click fails
+
+- Refresh the page and click **Replay the experience**.
+- Keep the pre-rendered video open in a second tab.
+- If the UI is unavailable, run `npm test` and state that 47 backend tests cover placement, heartbeat failure, lease fencing, accounting, and verification.
+- Never hide the **SIMULATED** labels for the recording.
+
+## Capture checklist
+
+- Browser zoom at 100%; notifications and unrelated tabs closed
+- 1920×1080 canvas, 30 or 60 fps
+- Cursor visible only for meaningful actions
+- Voice around -16 LUFS, music at least 12 dB quieter
+- Export H.264/AAC with web fast-start enabled
+- Watch the final export once with sound before upload

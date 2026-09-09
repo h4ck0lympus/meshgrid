@@ -1,0 +1,17 @@
+There’s useful compute sitting idle everywhere. AstraGrid turns workload intent into resilient, budget-aware compute.
+
+Give it an OCI image and an objective: cheapest, balanced, or fastest.
+
+The control plane reads declared requirements, filters the network, and ranks compatible providers. In this offline recording, the scheduler is deterministic, and every choice is backend-validated.
+
+A fenced lease activates. The route becomes healthy.
+
+Now the active provider disappears. The heartbeat expires; billing pauses; the stale lease is revoked; unused demo reserve is returned.
+
+Same intent. Same endpoint. New compatible provider. Healthy again.
+
+The compute response shown is simulated, but the recovery path is real.
+
+Today’s prototype implements placement, heartbeat failover, accounting invariants, and fresh CPU computation challenges. OCI execution, gVisor, GPU proof, and payments remain simulated.
+
+AstraGrid: compute that finds itself.

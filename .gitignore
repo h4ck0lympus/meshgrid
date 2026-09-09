@@ -15,8 +15,14 @@ coverage/
 playwright-report/
 test-results/
 qa/*.png
+qa/*.jpg
+qa/*.mp3
+qa/*.srt
+qa/*.vtt
+qa/*.ffconcat
 qa/*.webm
 qa/*.mp4
+qa/rendered/
 qa/*-results.json
 qa/http-smoke.txt
 qa/unit-tests.txt
