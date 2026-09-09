@@ -1,139 +1,181 @@
-import { api, esc, icon, money, patch, time } from './ui.js';
+import { api, esc, fillIcons, icon, money, patch, statusLabel, time } from './ui.js';
+import './components/topology.js';
+import './components/providers.js';
+import './components/astra.js';
 
-const select = selector => document.querySelector(selector);
-const dialog = select('#drawer');
-const form = select('#deploy-form');
+const $ = selector => document.querySelector(selector);
+const dialog = $('#drawer');
+const form = $('#deploy-form');
+const computeForm = $('#compute-form');
 let snapshot;
 let connected = false;
 let busy = false;
 let drawer = '';
 let inspectedProvider = '';
-let formJobId;
+let formJobId = '';
+let computeResult;
 let toastTimer;
-let endpointResult;
+
+fillIcons();
 
 function toast(message) {
-  select('#toast').textContent = message;
-  select('#toast').className = 'show';
+  $('#toast').textContent = message;
+  $('#toast').className = 'show';
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => { select('#toast').className = ''; }, 4500);
+  toastTimer = setTimeout(() => { $('#toast').className = ''; }, 3800);
 }
 
-function modelLabel() {
-  if (snapshot.mode !== 'openai') return 'Offline scheduler';
-  if (snapshot.job?.decision?.mode === 'fallback') return 'Astra unavailable · rules fallback';
-  if (snapshot.job?.decision?.mode === 'openai') return 'Astra · live model decision';
-  return 'Astra configured · awaiting a decision';
+function isHealthy(job, provider) {
+  return job?.status === 'healthy' && provider?.emitting && provider.status === 'online' && provider.latency <= job.spec.maxLatency;
 }
 
 function render() {
   if (!snapshot) return;
-  const workload = snapshot.job;
-  const provider = snapshot.providers.find(node => node.id === workload?.providerId);
-  const previous = snapshot.providers.find(node => node.id === workload?.previousProviderId);
-  const active = workload && !['stopped', 'completed'].includes(workload.status);
-  const interrupted = workload?.status === 'healthy' && (!provider?.emitting || provider.status === 'offline');
-  const recovering = workload && (['failing-over', 'rescheduling'].includes(workload.status) || workload.failoverStartedAt != null);
-  const healthy = workload?.status === 'healthy' && !interrupted && provider.latency <= workload.spec.maxLatency;
-  const status = interrupted ? 'Provider disconnected' : ({
-    inspecting: 'Checking requirements', scheduling: 'Choosing a provider', deploying: recovering ? 'Starting the replacement' : 'Starting the workload',
-    healthy: healthy ? 'Workload is running' : 'Performance limit exceeded', 'failing-over': 'Recovering your workload',
-    rescheduling: 'Finding a replacement', blocked: 'No eligible provider', stopped: 'Workload stopped',
-  })[workload?.status];
+  const job = snapshot.job;
+  const provider = snapshot.providers.find(item => item.id === job?.providerId);
+  const active = job && !['stopped', 'completed'].includes(job.status);
+  const healthy = isHealthy(job, provider);
+  const interrupted = job?.status === 'healthy' && (!provider?.emitting || provider?.status === 'offline');
+  const recovering = interrupted || ['failing-over', 'rescheduling'].includes(job?.status);
 
-  select('#node-count').textContent = snapshot.stats.online;
-  select('#connection').textContent = connected ? '● Connected' : '○ Reconnecting';
-  select('#connection').className = connected ? 'connected' : '';
-  select('#mode-label').textContent = modelLabel();
-  select('#deploy-fields').disabled = Boolean(active || busy || !connected);
-  select('#demo-button').disabled = busy || !connected || snapshot.demo.running;
-  select('#form-message').textContent = active ? 'One workload is active. Stop it to change these settings.' : 'An eligible node must meet your price and hardware limits.';
-  if (workload && workload.id !== formJobId) {
-    formJobId = workload.id;
-    for (const [name, value] of Object.entries(workload.spec)) {
+  document.body.classList.toggle('state-recovering', Boolean(recovering));
+  $('#node-count').textContent = String(snapshot.stats.online).padStart(2, '0');
+  $('#vram-count').textContent = `${snapshot.stats.vram}GB`;
+  $('#workload-count').textContent = healthy ? '01' : '00';
+  $('#provider-total').textContent = String(snapshot.stats.total).padStart(2, '0');
+  $('#network-health-label').textContent = recovering ? 'Network rearranging around a failure' : 'Community network operational';
+  $('#connection').innerHTML = `<span class="dot ${connected ? 'mint' : 'red'}"></span> ${connected ? 'Control plane online' : 'Reconnecting to control plane'}`;
+
+  $('#deploy-fields').disabled = Boolean(active || busy || !connected);
+  $('#deploy-label').textContent = active ? 'Workload active' : busy ? 'Astra is inspecting…' : 'Deploy with Astra';
+  $('#form-message').textContent = active ? `${job.spec.name} is active. Stop it to submit another workload.` : 'Astra chooses infrastructure from your intent.';
+
+  if (job && job.id !== formJobId) {
+    formJobId = job.id;
+    for (const [name, value] of Object.entries(job.spec)) {
       const field = form.elements.namedItem(name);
-      if (field) field.value = value;
+      if (!field) continue;
+      if (field instanceof RadioNodeList) {
+        const radio = [...field].find(item => item.value === value);
+        if (radio) radio.checked = true;
+      } else field.value = value;
     }
   }
 
-  if (!workload) {
-    patch(select('#execution-content'), `<div class="empty-state"><div class="empty-mark"><img src="/mark.svg" width="46" height="46" alt=""></div><h2 id="execution-heading">A home for your workload.</h2><p>Deploy to see the selected provider.<br>Or watch the automatic failover demo.</p></div>`);
-    patch(select('#execution-actions'), '');
-  } else {
-    const tone = interrupted || recovering || workload.status === 'blocked' ? 'warning' : healthy ? 'good' : '';
-    const planner = workload.decision?.mode === 'openai' ? 'ASTRA DECISION' : 'SCHEDULER DECISION';
-    const explanation = recovering ? 'The previous provider is unavailable. Selecting a replacement within the same hardware and price limits.'
-      : workload.rejection || workload.decision?.summary || 'Checking the declared workload against the available network.';
-    patch(select('#execution-content'), `<div class="state-heading"><div><h2 id="execution-heading">${esc(status)}</h2><p>${esc(workload.spec.name)}</p></div><span class="status ${tone}">${healthy ? 'HEALTHY' : interrupted ? 'OFFLINE' : recovering ? 'RECOVERING' : esc(workload.status.toUpperCase())}</span></div>
-      ${workload.lastRecoveryMs && healthy ? `<div class="recovery-note">${icon('check')} Recovered on ${esc(provider.name)} · ${(workload.lastRecoveryMs / 1000).toFixed(1)}s after detection</div>` : ''}
-      <div class="placement ${healthy ? 'running' : recovering ? 'recovering' : ''}"><div class="placement-card">${icon('box')}<small>YOUR WORKLOAD</small><strong>${esc(workload.spec.name)}</strong><small>${esc(workload.spec.architecture)} · ${esc(workload.spec.accelerator.toUpperCase())}</small></div><div class="placement-wire" aria-hidden="true"></div><div class="placement-card ${healthy ? 'active' : ''}">${icon('server')}<small>${recovering ? 'REPLACEMENT PROVIDER' : 'ASSIGNED PROVIDER'}</small><strong>${esc(provider?.name || (recovering ? 'Finding a node…' : 'Not assigned'))}</strong><small>${esc(provider?.gpu.replace('NVIDIA ', '') || (previous && recovering ? 'Previously ' + previous.name : 'Awaiting placement'))}</small></div></div>
-      <div class="decision"><small>${planner}</small>${esc(explanation)}</div>
-      ${workload.status === 'blocked' ? '<p class="notice warning">Nothing is running. Update your limits or add compatible capacity, then retry.</p>' : ''}
-      <div class="limits"><div><small>PROVIDER RATE</small>${provider ? '$' + provider.price.toFixed(2) + '/hr' : '—'}</div><div><small>YOUR RATE LIMIT</small>$${workload.spec.maxPrice.toFixed(2)}/hr</div><div><small>BUDGET CAP</small>$${workload.spec.budget.toFixed(3).replace(/0$/, '')}</div></div>`);
-    patch(select('#execution-actions'), `${healthy ? '<button class="button" data-action="endpoint">Run compute task ↗</button>' : ''}${healthy && provider.source === 'simulation' && !snapshot.demo.running ? `<button class="button danger" data-action="kill" data-id="${esc(provider.id)}">Disconnect provider</button>` : ''}${workload.status === 'blocked' ? '<button class="button" data-action="retry">Retry placement</button><button class="button" data-action="edit">Edit limits</button>' : ''}${active ? '<button class="quiet" data-action="stop">Stop workload</button>' : ''}`);
-    select('#execution-actions').querySelectorAll('button').forEach(button => { button.disabled = busy || !connected; });
-  }
+  $('#topology').state = snapshot;
+  $('#astra-panel').state = snapshot;
+  $('#providers').state = snapshot;
 
-  if (select('#technical').open) renderActivity();
-  if (dialog.open && ['network', 'provider', 'trace', 'ledger'].includes(drawer)) renderDrawer();
+  const stateText = interrupted ? 'Heartbeat delayed' : job ? statusLabel(job.status) : 'Awaiting intent';
+  $('#workload-status').innerHTML = `<i class="dot ${recovering ? 'red' : healthy ? 'mint' : 'violet'}"></i> ${esc(stateText)}`;
+  $('#metered-seconds').textContent = ((job?.verifiedMs ?? 0) / 1000).toFixed(1);
+  $('#provider-rate').textContent = provider ? `$${provider.price.toFixed(2)}/hr` : '—';
+  $('#recovery-time').textContent = job?.lastRecoveryMs ? `${(job.lastRecoveryMs / 1000).toFixed(1)} sec` : recovering ? 'In progress' : 'Ready';
+
+  $('#route-status').textContent = healthy ? `READY · ${provider.name}` : recovering ? 'ROUTING…' : 'WAITING FOR WORKLOAD';
+  $('#route-status').className = healthy ? 'ready' : recovering ? 'routing' : '';
+  $('#run-compute').disabled = !healthy || busy;
+  $('#compute-command').disabled = !healthy || busy;
+  renderComputeResult(provider, healthy, recovering);
+
+  if (dialog.open && drawer) renderDrawer();
 }
 
-function renderActivity() {
-  if (!snapshot) return;
-  patch(select('#activity-list'), snapshot.events.slice(0, 12).map(event => `<div class="event"><time>${time(event.at)}</time><div>${esc(event.title)}<p>${esc(event.detail)}</p></div></div>`).join(''));
+function renderComputeResult(provider, healthy, recovering) {
+  if (computeResult) {
+    patch($('#compute-result'), `<div class="result-meta"><span>200 OK</span><span>${computeResult.latency_ms} ms · simulated</span><span>${esc(computeResult.provider.name)}</span></div><p>${esc(computeResult.result.summary)}</p><code>${esc(computeResult.command)}</code>`);
+    return;
+  }
+  patch($('#compute-result'), recovering
+    ? '<div class="routing-state"><i></i><span>Same route. New provider being selected.</span></div>'
+    : healthy
+      ? `<div class="result-meta"><span>READY</span><span>stable control-plane route</span><span>${esc(provider.name)}</span></div><p>Send a compute task to the selected machine.</p>`
+      : '<span>—</span><p>Your task will be routed to the selected provider.</p>');
+}
+
+function providerRows() {
+  return snapshot.providers.map(provider => `<button class="drawer-provider" data-action="node" data-id="${esc(provider.id)}"><span class="provider-glyph">${icon('cpu')}</span><span><strong>${esc(provider.name)}</strong><small>${esc(provider.gpu)} · ${provider.vram} GB · ${esc(provider.region)}</small></span><span class="provider-price"><i class="dot ${!provider.emitting || provider.status === 'offline' ? 'red' : 'mint'}"></i>$${provider.price.toFixed(2)}/hr</span></button>`).join('');
 }
 
 function renderDrawer() {
-  const workload = snapshot?.job;
+  const job = snapshot?.job;
+  let title = '';
   let content = '';
-  if (drawer === 'guide') content = `<p class="dialog-copy">The demo follows one OCI workload through placement, provider loss, and recovery. It takes about 25 seconds with the offline scheduler.</p><ol class="guide-steps"><li><strong>A node joins the network.</strong><p>A simulated provider advertises its hardware and rate.</p></li><li><strong>The workload gets a provider.</strong><p>Astra checks the declared SLO, budget, and hardware requirements, then selects an eligible node.</p></li><li><strong>The provider disconnects.</strong><p>The demo stops its heartbeat automatically. You can also disconnect a provider manually after deploying a workload.</p></li><li><strong>The workload recovers elsewhere.</strong><p>The watchdog detects the loss, revokes the old assignment, and restarts the simulated workload on a compatible backup.</p></li></ol><div class="notice"><strong>What’s real?</strong><p>The backend state, eligibility checks, watchdog, recovery, and agent CPU challenges. OCI execution, GPU performance, and payments are simulated. Tasks fail during recovery; subsequent tasks use the same control-plane route.</p></div><p class="dialog-copy">${snapshot ? esc(modelLabel()) + '.' : ''} The optional Astra adapter makes live placement decisions when configured successfully.</p>`;
-  if (drawer === 'network') content = `<p class="dialog-copy">${snapshot.stats.online} nodes online. Select a node to inspect its evidence. Built-in nodes are simulated.</p>${snapshot.providers.map(provider => `<div class="provider-row"><div class="provider-heading"><button data-action="provider" data-id="${esc(provider.id)}"><strong>${esc(provider.name)}</strong></button><span class="status ${provider.status === 'online' && provider.emitting ? 'good' : ''}">${esc(!provider.emitting ? 'offline' : provider.status)}</span></div><p>${esc(provider.gpu)} · ${provider.vram} GB VRAM · $${provider.price.toFixed(2)}/hr</p><small>${provider.source === 'simulation' ? 'Simulated node' : 'Local agent · CPU challenge ' + esc(provider.verification.status)}</small></div>`).join('')}<div class="dialog-actions"><button class="button" data-action="register">Add simulated node</button></div><p class="field-note">For real local telemetry and CPU challenges, run <code>npm run provider</code> in another terminal.</p>`;
-  if (drawer === 'provider') {
-    const provider = snapshot.providers.find(node => node.id === inspectedProvider);
-    if (!provider) content = '<p class="dialog-copy">This node is no longer registered.</p>';
+  if (drawer === 'guide') {
+    title = 'What this prototype proves';
+    content = `<p class="dialog-copy">AstraGrid turns a declared OCI workload and desired SLO into a placement decision, then watches provider heartbeats and reroutes after failure.</p><div class="truth-grid"><div><strong>WORKING NOW</strong><p>Control-plane state, compatibility filters, placement, heartbeat loss, fenced leases, recovery, demo accounting, and fresh CPU challenges.</p></div><div><strong>SIMULATED</strong><p>OCI execution, gVisor isolation, GPU identity and performance, workload migration, compute results, pricing, and payments.</p></div></div><div class="architecture-flow"><span>CONSUMER<br><small>OCI + SLO</small></span><i>→</i><span>ASTRA<br><small>planner</small></span><i>→</i><span>CONTROL PLANE<br><small>route + recover</small></span><i>→</i><span>PROVIDER<br><small>GPU capacity</small></span></div>`;
+  }
+  if (drawer === 'network') {
+    title = 'The provider network';
+    content = `<p class="dialog-copy">${snapshot.stats.online} machines are reporting. Hardware and pricing on built-in nodes are demo fixtures.</p><div class="drawer-provider-list">${providerRows()}</div><div class="dialog-actions"><button class="button primary" data-action="register">Add a simulated provider</button></div>`;
+  }
+  if (drawer === 'node') {
+    const provider = snapshot.providers.find(item => item.id === inspectedProvider);
+    title = provider?.name ?? 'Provider evidence';
+    if (!provider) content = '<p class="dialog-copy">This provider is no longer registered.</p>';
     else {
-      const verification = provider.verification;
-      const evidence = [['Hardware', provider.gpu + ' · self-reported'], ['Memory', `${provider.vram} GB VRAM / ${provider.ram} GB RAM · reported`], ['Source', provider.source], ['CPU challenge', verification.status], ['Measured round trip', verification.roundTripMs == null ? 'Not measured' : verification.roundTripMs + ' ms'], ['Last successful check', verification.checkedAt == null ? 'Never' : time(verification.checkedAt)], ['Valid until', verification.validUntil == null ? 'No measured evidence' : time(verification.validUntil)], ['GPU benchmark', 'Not performed']];
-      content = `<p class="dialog-copy">${esc(provider.name)} · ${esc(provider.region)}</p>${evidence.map(([label, value]) => `<div class="evidence-row"><span>${esc(label)}</span><strong>${esc(value)}</strong></div>`).join('')}<p class="notice">${esc(verification.reason || verification.note)}</p><div class="dialog-actions">${provider.source === 'simulation' ? `<button class="button ${provider.emitting ? 'danger' : ''}" data-action="${provider.emitting ? 'kill' : 'revive'}" data-id="${esc(provider.id)}">${provider.emitting ? 'Disconnect provider' : 'Reconnect provider'}</button>` : '<p class="field-note">Stop the provider process to interrupt its heartbeat.</p>'}</div>`;
+      const active = job?.providerId === provider.id;
+      content = `<div class="node-hero"><span>${icon('cpu')}</span><div><small>${esc(provider.region.toUpperCase())}</small><h3>${esc(provider.gpu.replace('NVIDIA ', ''))}</h3><p>${provider.vram} GB VRAM · ${provider.ram} GB RAM · $${provider.price.toFixed(2)}/hr</p></div><span class="status-chip ${!provider.emitting ? 'danger' : active ? 'assigned' : ''}">${!provider.emitting ? 'OFFLINE' : active ? 'ASSIGNED' : 'AVAILABLE'}</span></div><div class="evidence-list">${[['Hardware identity', 'Self-reported'], ['Node source', provider.source], ['CPU challenge', provider.verification.status], ['Observed latency', `${provider.latency} ms · synthetic`], ['GPU benchmark', 'Not performed'], ['Runtime isolation', 'Planned, not executed']].map(([label, value]) => `<div><span>${label}</span><strong>${esc(value)}</strong></div>`).join('')}</div><div class="dialog-actions">${provider.source === 'simulation' ? `<button class="button ${provider.emitting ? 'danger' : ''}" data-action="${provider.emitting ? 'kill' : 'revive'}" data-id="${esc(provider.id)}">${provider.emitting ? 'Disconnect provider' : 'Reconnect provider'}</button>` : '<p class="dialog-copy">Stop the provider process to interrupt its heartbeat.</p>'}</div>`;
     }
   }
-  if (drawer === 'trace') content = workload ? `<p class="dialog-copy">${esc(workload.decision?.summary || workload.rejection || 'Evaluating the network…')}</p><p class="field-note">${esc(modelLabel())}. Candidate rates and latency are demo values.</p>${(workload.candidates || []).map(candidate => `<div class="candidate"><strong>${esc(candidate.name)}</strong> · ${candidate.compatible ? 'Eligible' : 'Excluded'}<p>${candidate.compatible ? '$' + candidate.price.toFixed(2) + '/hr · ' + candidate.latency + ' ms synthetic latency' : esc(candidate.reasons.join(' · '))}</p></div>`).join('')}` : '<p class="dialog-copy">Deploy a workload to see its placement decision.</p>';
-  if (drawer === 'ledger') content = workload ? `<p class="dialog-copy">Demo balances. Charges pause during recovery; unused reserve returns to the available balance.</p>${[['Budget', workload.ledger.depositNanos], ['Available', workload.ledger.availableNanos], ['Reserved', workload.ledger.heldNanos], ['Settled usage', workload.ledger.settledNanos], ['Cumulative reserve returned', workload.ledger.refundedNanos]].map(([label, amount]) => `<div class="evidence-row"><span>${label}</span><strong>${money(amount)}</strong></div>`).join('')}<p class="field-note">Budget = available + reserved + settled. Returned reserve is already included in those balances.</p>` : '<p class="dialog-copy">No budget is reserved.</p>';
-  if (drawer === 'endpoint') content = `<p class="dialog-copy">Submit a task to the active OCI workload. Astra keeps it within the declared SLO and budget, and the control-plane route stays stable after failover.</p><pre>POST /api/compute</pre><form id="compute-form" class="endpoint-form"><label>Workload command<input id="compute-command" name="command" value="python /workspace/task.py --input demo" maxlength="2000" required spellcheck="false"></label><button class="button" id="run-compute" type="submit">Run task</button></form><div id="endpoint-result">${endpointResult ? `<pre>${esc(endpointResult)}</pre>` : ''}</div><p class="field-note">Simulation only. No OCI image or consumer command is executed in this demo.</p>`;
-  patch(select('#drawer-body'), content);
-  select('#drawer-body').querySelectorAll('button[data-action]').forEach(button => { button.disabled = busy || !connected; });
+  if (drawer === 'trace') {
+    title = 'Astra placement race';
+    const candidates = job?.candidates ?? [];
+    content = job ? `<p class="dialog-copy">Goal: <strong>${esc(job.spec.objective.replaceAll('-', ' '))}</strong>. Hard constraints gate the field before Astra ranks the viable shortlist.</p><div class="race-list">${candidates.map((candidate, index) => `<div class="race-row ${candidate.compatible ? '' : 'rejected'}"><div><span>${String(index + 1).padStart(2, '0')}</span><strong>${esc(candidate.name)}</strong><small>${candidate.compatible ? `$${candidate.price.toFixed(2)}/hr · ${candidate.latency} ms` : esc(candidate.reasons.join(' · '))}</small></div><div class="race-track"><i style="width:${candidate.compatible ? Math.max(8, candidate.score) : 4}%"></i></div><b>${candidate.compatible ? Math.round(candidate.score) : '×'}</b></div>`).join('')}</div><div class="astra-quote"><span>ASTRA</span><p>${esc(job.decision?.summary ?? job.phase)}</p></div>` : '<div class="empty-drawer"><span class="orbit-loader"></span><h3>No decision yet</h3><p>Deploy a workload to watch compatible providers race for placement.</p></div>';
+  }
+  if (drawer === 'ledger') {
+    title = 'Protected demo balance';
+    content = job ? `<p class="dialog-copy">Charges pause during recovery. Unused reserve returns to the available demo balance.</p><div class="ledger-grid">${[['Budget', job.ledger.depositNanos], ['Available', job.ledger.availableNanos], ['Reserve held', job.ledger.heldNanos], ['Settled usage', job.ledger.settledNanos], ['Returned', job.ledger.refundedNanos]].map(([label, value]) => `<div><span>${label}</span><strong>${money(value)}</strong></div>`).join('')}</div><p class="ledger-proof">Budget = available + reserve + settled. Demo credits only; no money moves.</p>` : '<div class="empty-drawer"><h3>No balance reserved</h3><p>Deploy a workload to see receipt-based demo accounting.</p></div>';
+  }
+  if (drawer === 'register') {
+    title = 'Join the living grid';
+    content = `<p class="dialog-copy">For the hackathon demo, add a simulated provider or run the local provider agent on another machine.</p><pre class="command-block">$ npm run provider</pre><form id="provider-form" class="provider-form"><label>Node name<input name="name" value="NOVA-${snapshot.providers.length + 1}" maxlength="40" required></label><div class="form-pair"><label>GPU<input name="gpu" value="NVIDIA RTX 4090" maxlength="80" required></label><label>VRAM · GB<input name="vram" type="number" value="24" min="0" max="192" required></label></div><div class="form-pair"><label>Price · $/hr<input name="price" type="number" value="0.30" min="0.01" max="20" step="0.01" required></label><label>Latency · ms<input name="latency" type="number" value="42" min="5" max="2000" required></label></div><button class="button primary" type="submit">Discover simulated node →</button></form>`;
+  }
+  if (drawer === 'workload') {
+    title = 'Active workload';
+    content = job ? `<div class="workload-detail"><span class="status-chip ${job.status === 'healthy' ? 'healthy' : ''}">${esc(statusLabel(job.status).toUpperCase())}</span><h3>${esc(job.spec.name)}</h3><code>${esc(job.spec.image)}</code><div class="evidence-list">${[['Objective', job.spec.objective], ['SLO', `p95 ≤ ${job.spec.maxLatency} ms`], ['Rate ceiling', `$${job.spec.maxPrice.toFixed(2)}/hr`], ['Accelerator', job.spec.accelerator.toUpperCase()], ['Provider', snapshot.providers.find(item => item.id === job.providerId)?.name ?? 'Searching']].map(([label, value]) => `<div><span>${label}</span><strong>${esc(value)}</strong></div>`).join('')}</div><div class="dialog-actions"><button class="button danger" data-action="stop">Stop workload</button></div></div>` : '<p class="dialog-copy">No workload is active.</p>';
+  }
+  $('#drawer-title').textContent = title;
+  patch($('#drawer-body'), content);
 }
 
-function openDrawer(kind, providerId) {
+function openDrawer(kind, providerId = '') {
+  if (!snapshot && kind !== 'guide') return toast('Waiting for the control plane.');
   drawer = kind;
-  inspectedProvider = providerId || '';
-  select('#drawer-title').textContent = ({ guide: 'How the demo works', network: 'Compute network', provider: 'Provider evidence', trace: 'Placement decision', ledger: 'Demo accounting', endpoint: 'Compute task console' })[kind];
+  inspectedProvider = providerId;
   renderDrawer();
   if (!dialog.open) dialog.showModal();
 }
 
-async function performAction(action, providerId) {
-  if (action === 'close') { dialog.close(); return; }
-  if (['guide', 'network', 'provider', 'trace', 'ledger', 'endpoint'].includes(action)) {
-    if (!snapshot && action !== 'guide') { toast('Waiting for the local server.'); return; }
-    openDrawer(action, providerId); return;
+async function performAction(action, id) {
+  if (action === 'close') return dialog.close();
+  if (action === 'home') return window.scrollTo({ top: 0, behavior: 'smooth' });
+  if (action === 'deploy') { window.scrollTo({ top: 0, behavior: 'smooth' }); return setTimeout(() => $('#image-input').focus(), 450); }
+  if (action === 'network') return openDrawer('network');
+  if (action === 'trace') return openDrawer('trace');
+  if (action === 'ledger') return openDrawer('ledger');
+  if (action === 'guide') return openDrawer('guide');
+  if (action === 'register') return openDrawer('register');
+  if (action === 'node') return openDrawer('node', id);
+  if (action === 'workload') return openDrawer('workload');
+  if (action === 'zoom-in') return $('#topology').zoomBy(.12);
+  if (action === 'zoom-out') return $('#topology').zoomBy(-.12);
+  if (action === 'fit') return $('#topology').fit();
+  if (action === 'copy') {
+    await navigator.clipboard.writeText(`curl -X POST http://localhost:3000/api/compute -H 'Content-Type: application/json' -d '{"command":"python /workspace/run.py --batch 20"}'`);
+    return toast('Compute request copied.');
   }
   if (busy || !connected) return;
-  if (action === 'demo' && snapshot.job && !confirm('Start a fresh demo? This replaces the current workload and demo balance.')) return;
+  if (action === 'demo' && snapshot.job && !confirm('Start a fresh failover demo? This replaces the active workload and demo balance.')) return;
   busy = true; render();
   try {
-    if (action === 'demo') await api('/api/demo/start', {});
-    if (action === 'kill') { await api(`/api/providers/${providerId}/offline`, {}); toast('Provider disconnected. Waiting for the watchdog.'); }
-    if (action === 'revive') await api(`/api/providers/${providerId}/online`, {});
-    if (action === 'stop' || action === 'edit') await api('/api/workload/stop', {});
-    if (action === 'retry') await api('/api/workload/retry', {});
-    if (action === 'register') { await api('/api/providers', { name: `NODE-${snapshot.providers.length + 1}` }); toast('Simulated node added.'); }
+    if (action === 'demo') { computeResult = null; await api('/api/demo/start', {}); }
+    if (action === 'kill') { await api(`/api/providers/${id}/offline`, {}); toast('Heartbeat interrupted. Astra is watching.'); }
+    if (action === 'revive') await api(`/api/providers/${id}/online`, {});
+    if (action === 'stop') await api('/api/workload/stop', {});
     snapshot = await api('/api/state');
-    if (dialog.open && action !== 'register') dialog.close();
-  } finally {
-    busy = false; render();
-    if (action === 'edit') form.elements.maxPrice.focus();
-  }
+    if (dialog.open && ['kill', 'revive', 'stop'].includes(action)) dialog.close();
+  } finally { busy = false; render(); }
 }
 
 document.addEventListener('click', event => {
@@ -147,36 +189,48 @@ form.addEventListener('submit', async event => {
   if (busy || !connected) return;
   const specification = Object.fromEntries(new FormData(form));
   for (const name of ['minVram', 'minRam', 'minCuda', 'maxLatency', 'maxPrice', 'budget']) specification[name] = Number(specification[name]);
-  busy = true; select('#form-error').textContent = ''; render();
+  busy = true; computeResult = null; $('#form-error').textContent = ''; render();
   try {
     await api('/api/workloads', specification);
     snapshot = await api('/api/state');
-  } catch (error) { select('#form-error').textContent = error.message; }
+    setTimeout(() => document.querySelector('.network-layout').scrollIntoView({ behavior: 'smooth', block: 'start' }), 200);
+  } catch (error) { $('#form-error').textContent = error.message; }
+  finally { busy = false; render(); }
+});
+
+computeForm.addEventListener('submit', async event => {
+  event.preventDefault();
+  if (busy || !connected) return;
+  busy = true; render();
+  try {
+    computeResult = await api('/api/compute', { command: new FormData(computeForm).get('command') });
+    snapshot = await api('/api/state');
+  } catch (error) { computeResult = null; toast(error.message); }
   finally { busy = false; render(); }
 });
 
 dialog.addEventListener('submit', async event => {
-  if (event.target.id !== 'compute-form') return;
+  if (event.target.id !== 'provider-form') return;
   event.preventDefault();
-  const button = event.target.querySelector('button');
-  button.disabled = true;
-  try {
-    const response = await api('/api/compute', { command: new FormData(event.target).get('command') });
-    endpointResult = `200 OK · ${response.provider.name}\n\n${response.result.summary}\n${response.command}\n\nSimulated task`;
-  } catch (error) { endpointResult = error.message; }
-  finally {
-    button.disabled = false;
-    if (drawer === 'endpoint' && dialog.open) patch(select('#endpoint-result'), `<pre>${esc(endpointResult)}</pre>`);
-  }
+  const data = Object.fromEntries(new FormData(event.target));
+  for (const name of ['vram', 'price', 'latency']) data[name] = Number(data[name]);
+  busy = true;
+  try { await api('/api/providers', data); snapshot = await api('/api/state'); dialog.close(); toast(`${data.name} discovered on the grid.`); }
+  finally { busy = false; render(); }
 });
+
 dialog.addEventListener('close', () => { drawer = ''; });
-select('#technical').addEventListener('toggle', renderActivity);
+document.addEventListener('keydown', event => {
+  if (event.key.toLowerCase() === 'd' && !['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) performAction('deploy');
+  if (event.key === 'Escape' && dialog.open) dialog.close();
+});
 
 async function connect() {
   try { snapshot = await api('/api/state'); connected = true; render(); }
-  catch { select('#connection').textContent = 'Server unavailable'; select('#deploy-fields').disabled = true; select('#demo-button').disabled = true; }
+  catch { connected = false; $('#connection').innerHTML = '<span class="dot red"></span> Control plane unavailable'; }
   const stream = new EventSource('/api/events');
   stream.onmessage = event => { snapshot = JSON.parse(event.data); connected = true; render(); };
   stream.onerror = () => { connected = false; render(); };
 }
+
 connect();

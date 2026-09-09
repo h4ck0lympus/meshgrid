@@ -13,7 +13,7 @@ async function fixture(t) {
 }
 test('HTTP serves app and an API snapshot without provider tokens',async t=>{
   const {base}=await fixture(t);
-  const r=await fetch(base+'/'); assert.equal(r.status,200); assert.match(await r.text(),/Meshwork/);
+  const r=await fetch(base+'/'); assert.equal(r.status,200); assert.match(await r.text(),/AstraGrid/);
   const s=await (await fetch(base+'/api/state')).json(); assert.equal(s.providers.length,6);
   assert.ok(s.providers.every(n=>n.token===undefined));
 });

@@ -37,6 +37,7 @@ class GridTopology extends HTMLElement {
       <ellipse class="orbit-line" cx="475" cy="237" rx="170" ry="115"/><ellipse class="orbit-line outer" cx="475" cy="237" rx="310" ry="187"/>
       <path class="axis-line" d="M0 237h950M475 0v480"/>${paths}
       <g class="ambient-stars" fill="#8d83b8"><circle cx="355" cy="64" r="1.5"/><circle cx="593" cy="127" r="1.5"/><circle cx="737" cy="324" r="1.5"/><circle cx="194" cy="183" r="1.5"/><circle cx="360" cy="314" r="2"/><circle cx="535" cy="345" r="1.5"/></g></svg>
+      <div class="workload-capsule ${j ? 'has-workload' : ''}"><span>${j ? 'OCI WORKLOAD' : 'AWAITING INTENT'}</span><strong>${esc(j?.spec.name ?? 'Deploy with Astra')}</strong><i></i></div>
       <div class="core-anchor"><div class="core-eyebrow">${label}</div><div class="core-orbit"><span class="core-orbit-dot"></span></div><div class="core-orbit second"></div><button class="astra-core ${failed ? 'core-recovering' : ''}" data-action="trace" aria-label="Inspect Astra scheduling decisions"><img src="/mark.svg" alt="" width="55" height="55"></button><div class="core-label">ASTRA<span>THE ORCHESTRATION ENGINE</span></div></div>
       ${nodes}
     </div>`);
