@@ -1,0 +1,13 @@
+{
+  "name": "batch-compute",
+  "image": "ghcr.io/meshwork/compute-demo:1.0",
+  "architecture": "amd64",
+  "accelerator": "cuda",
+  "minVram": 16,
+  "minRam": 16,
+  "minCuda": 12,
+  "maxLatency": 120,
+  "maxPrice": 0.60,
+  "budget": 1.00,
+  "objective": "balanced"
+}

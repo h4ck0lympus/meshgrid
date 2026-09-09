@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#09090d">
+  <meta name="description" content="AstraGrid turns workload intent into resilient, budget-aware compute across independent machines.">
+  <title>AstraGrid — Compute that finds itself</title>
+  <link rel="icon" href="/mark.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to live network</a>
+  <aside class="rail" aria-label="Workspace navigation">
+    <a class="rail-mark" href="/" aria-label="AstraGrid home"><img src="/mark.svg" width="34" height="34" alt=""></a>
+    <nav>
+      <button class="rail-button active" data-action="home" aria-label="Live network" title="Live network" data-icon="network"></button>
+      <button class="rail-button" data-action="deploy" aria-label="Deploy workload" title="Deploy workload" data-icon="box"></button>
+      <button class="rail-button" data-action="network" aria-label="Provider network" title="Provider network" data-icon="server"></button>
+      <button class="rail-button" data-action="trace" aria-label="Astra activity" title="Astra activity" data-icon="activity"></button>
+      <button class="rail-button" data-action="ledger" aria-label="Demo ledger" title="Demo ledger" data-icon="wallet"></button>
+    </nav>
+    <button class="rail-button rail-bottom" data-action="guide" aria-label="Simulation boundaries" title="Simulation boundaries" data-icon="shield"></button>
+  </aside>
+  <div class="app-shell">
+    <header class="topbar">
+      <a class="wordmark" href="/">ASTRA<span>GRID</span><sup>BETA</sup></a>
+      <div class="topbar-right">
+        <button class="environment-pill" data-action="guide"><span class="dot violet"></span> Sandbox environment <span aria-hidden="true">⌄</span></button>
+        <span id="connection" class="connection" role="status"><span class="dot mint"></span> Control plane online</span>
+      </div>
+    </header>
+    <main id="main">
+      <section class="hero" aria-labelledby="hero-title">
+        <div class="hero-copy">
+          <p class="eyebrow"><span aria-hidden="true">✦</span> INTENT IN. COMPUTE OUT.</p>
+          <h1 id="hero-title">Compute that<br><em>finds itself.</em></h1>
+          <p>Bring an OCI image and tell Astra what matters. It inspects the workload, finds compatible capacity, and keeps it moving.</p>
+        </div>
+        <form id="deploy-form" class="intent-card" aria-label="Deploy with Astra">
+          <fieldset id="deploy-fields">
+            <div class="intent-label"><span>YOUR WORKLOAD</span><span>DOCKER / OCI</span></div>
+            <label class="image-field"><span class="field-icon" data-icon="box"></span><span class="sr-only">OCI image reference</span><input id="image-input" name="image" value="ghcr.io/astragrid/qwen:latest" maxlength="240" required spellcheck="false" aria-label="OCI image reference"></label>
+            <fieldset class="objective-fieldset">
+              <legend>What matters?</legend>
+              <div class="objective-options">
+                <label><input type="radio" name="objective" value="lowest-cost"><span>Cheapest</span></label>
+                <label><input type="radio" name="objective" value="balanced" checked><span>Balanced</span></label>
+                <label><input type="radio" name="objective" value="lowest-latency"><span>Fastest</span></label>
+              </div>
+            </fieldset>
+            <details class="advanced">
+              <summary>Desired SLO <span>p95 ≤ 120 ms · max $0.60/hr</span><span aria-hidden="true">+</span></summary>
+              <div class="advanced-grid">
+                <label>Workload name<input name="name" value="qwen-batch" maxlength="60" required></label>
+                <label>Maximum rate · $/hr<input name="maxPrice" type="number" min="0.01" max="20" step="0.01" value="0.60" required></label>
+                <label>Budget cap · demo $<input name="budget" type="number" min="0.001" max="100" step="0.001" value="1.00" required></label>
+                <label>VRAM · GB<input name="minVram" type="number" min="0" max="192" value="16" required></label>
+                <label>RAM · GB<input name="minRam" type="number" min="1" max="512" value="16" required></label>
+                <label>Latency limit · ms<input name="maxLatency" type="number" min="10" max="2000" value="120" required></label>
+                <label>Architecture<select name="architecture"><option value="amd64">AMD64</option><option value="arm64">ARM64</option></select></label>
+                <label>Accelerator<select name="accelerator"><option value="cuda">NVIDIA CUDA</option><option value="cpu">CPU</option><option value="metal">Apple Metal</option></select></label>
+                <label>Minimum CUDA<input name="minCuda" type="number" min="11" max="14" step="0.1" value="12" required></label>
+              </div>
+            </details>
+            <button class="deploy-button" id="deploy-button" type="submit"><span data-icon="bolt"></span><span id="deploy-label">Deploy with Astra</span><span aria-hidden="true">→</span></button>
+          </fieldset>
+          <p id="form-message" class="form-message" aria-live="polite">Astra chooses infrastructure from your intent.</p>
+          <p id="form-error" class="form-error" role="alert"></p>
+        </form>
+        <section class="network-summary" aria-label="Live network summary">
+          <div><strong id="node-count">06</strong><span>nodes online</span></div>
+          <div><strong id="vram-count">118GB</strong><span>advertised VRAM</span></div>
+          <div><strong id="workload-count">00</strong><span>healthy workloads</span></div>
+          <div class="network-health"><span class="pulse-dot"></span><span id="network-health-label">Community network operational</span></div>
+        </section>
+      </section>
+      <section class="network-layout">
+        <section class="topology-panel panel" aria-label="Live system visualization">
+          <div class="panel-heading topology-heading"><div class="view-tabs"><button class="active" data-action="home">Live topology</button><button data-action="trace">Placement race</button></div><span class="live-badge"><span class="dot mint"></span> LIVE</span></div>
+          <div class="topology-stage">
+            <grid-topology id="topology"></grid-topology>
+            <div class="topology-caption"><span>⌖</span><div><strong>DISTRIBUTED BY DESIGN</strong><small>One intent. Many possible homes.</small></div></div>
+            <div class="topology-tools" aria-label="Topology controls"><button data-action="zoom-out" aria-label="Zoom out" data-icon="minus"></button><button data-action="zoom-in" aria-label="Zoom in" data-icon="plus"></button><button data-action="fit" aria-label="Reset view" data-icon="focus"></button></div>
+          </div>
+          <div class="topology-legend"><span><i class="dot mint"></i> Available</span><span><i class="dot violet"></i> Assigned</span><span><i class="dot red"></i> Offline</span></div>
+          <div class="topology-metrics">
+            <div><small>WORKLOAD STATUS</small><strong id="workload-status"><i class="dot mint"></i> Awaiting intent</strong></div>
+            <div><small>METERED COMPUTE · MOCK</small><strong><span id="metered-seconds">0.0</span> <i>seconds</i></strong></div>
+            <div><small>PROVIDER RATE</small><strong id="provider-rate">—</strong></div>
+            <div><small>RECOVERY</small><strong id="recovery-time">Ready</strong></div>
+          </div>
+        </section>
+        <astra-panel id="astra-panel" class="astra-panel panel"></astra-panel>
+      </section>
+      <section class="provider-section" aria-labelledby="providers-title">
+        <div class="section-heading"><div><h2 id="providers-title">The living grid <span id="provider-total">06</span></h2><p>Independent machines. One shared control plane.</p></div><button class="text-button" data-action="register">Become a provider <span aria-hidden="true">↗</span></button></div>
+        <provider-list id="providers" class="provider-list"></provider-list>
+      </section>
+      <section class="bottom-grid">
+        <section class="compute-panel panel" aria-labelledby="compute-title">
+          <div class="panel-heading"><div class="terminal-title"><span data-icon="terminal"></span><h2 id="compute-title">Compute task</h2></div><span class="mock-label">SIMULATED RESULT</span></div>
+          <div class="route-row"><span>POST</span><code>/api/compute</code><button data-action="copy" aria-label="Copy curl command" data-icon="copy"></button><span id="route-status">WAITING FOR WORKLOAD</span></div>
+          <form id="compute-form" class="compute-form"><label class="sr-only" for="compute-command">Workload command</label><input id="compute-command" name="command" value="python /workspace/run.py --batch 20" maxlength="2000" required spellcheck="false"><button id="run-compute" type="submit"><span data-icon="send"></span> Run</button></form>
+          <div id="compute-result" class="compute-result"><span>—</span><p>Your task will be routed to the selected provider.</p></div>
+        </section>
+        <section class="security-panel panel" aria-labelledby="security-title">
+          <div class="panel-heading"><div class="terminal-title"><span data-icon="shield"></span><h2 id="security-title">Isolated by design</h2></div><button data-action="guide" aria-label="Inspect isolation model" data-icon="arrow-up-right"></button></div>
+          <div class="sandbox-visual"><div class="provider-boundary"><span>PROVIDER MACHINE</span><div class="sandbox-boundary"><span><i data-icon="lock"></i> gVisor sandbox · planned</span><strong>Consumer OCI image</strong><small>CPU · RAM · NVIDIA GPU</small></div></div></div>
+          <p>Workloads are designed to run inside an isolated sandbox. This prototype visualizes the policy; it does not execute containers yet.</p>
+        </section>
+      </section>
+      <footer class="footer"><span><img src="/mark.svg" width="15" height="15" alt=""> BUILT FOR THE COMPUTE COMMONS</span><button data-action="guide">Simulation boundaries</button><span>ASTRAGRID / v0.1.0</span></footer>
+    </main>
+  </div>
+  <dialog id="drawer" aria-labelledby="drawer-title"><div class="dialog-heading"><div><span class="dialog-kicker">ASTRAGRID</span><h2 id="drawer-title"></h2></div><button data-action="close" aria-label="Close panel">×</button></div><div id="drawer-body"></div></dialog>
+  <div id="toast" role="status" aria-live="polite"></div>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>

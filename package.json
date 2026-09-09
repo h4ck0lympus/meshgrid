@@ -1,0 +1,13 @@
+{
+  "name": "meshwork", "version": "0.1.0", "private": true,
+  "description": "Meshwork — community compute, intelligently orchestrated. Local hackathon MVP.",
+  "type": "module", "engines": {"node": ">=22.16.0"},
+  "scripts": {
+    "start": "node server/index.mjs",
+    "dev": "node --watch server/index.mjs",
+    "test": "node --test tests/*.test.mjs",
+    "provider": "node scripts/provider-agent.mjs",
+    "verify:smoke": "node scripts/verification-smoke.mjs",
+    "smoke": "node scripts/smoke.mjs"
+  }
+}

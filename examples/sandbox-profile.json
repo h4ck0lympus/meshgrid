@@ -1,0 +1,19 @@
+{
+  "status": "DESIGN ONLY — NOT ENFORCED BY THIS SIMULATOR",
+  "package_format": "OCI",
+  "security_boundary": "separate isolated runtime; not OCI packaging itself",
+  "production_requirements": {
+    "isolation": "validated VM or sandbox runtime appropriate to the GPU and threat model",
+    "rootless": true,
+    "read_only_rootfs": true,
+    "drop_capabilities": ["ALL"],
+    "no_new_privileges": true,
+    "host_mounts": false,
+    "docker_socket": false,
+    "network_egress": "deny by default, explicitly allowlisted",
+    "resource_limits": "enforced CPU, RAM, GPU, PID, disk and wall-clock quotas",
+    "image_policy": "digest pinning, scanning and registry allowlist",
+    "secrets": "short-lived scoped credentials, no shared host secrets"
+  },
+  "note": "This file documents future enforcement requirements. No real isolated executor ships in this MVP. GPU isolation compatibility must be validated separately."
+}
